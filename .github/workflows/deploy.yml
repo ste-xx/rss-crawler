@@ -19,4 +19,11 @@ jobs:
       - name: Publish
         uses: cloudflare/wrangler-action@2.0.0
         with:
+          workingDirectory: 'crawler'
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+
+      - name: Publish
+        uses: cloudflare/wrangler-action@2.0.0
+        with:
+          workingDirectory: 'trigger'
           apiToken: ${{ secrets.CF_API_TOKEN }}

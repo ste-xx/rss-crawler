@@ -1,0 +1,6 @@
+name = "rss-crawler-trigger"
+main = "src/index.ts"
+compatibility_date = "2023-04-13"
+
+[triggers]
+crons = [ "1 * * * *" ]
