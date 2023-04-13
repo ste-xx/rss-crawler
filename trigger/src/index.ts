@@ -36,7 +36,7 @@ export default {
     env: Env,
     ctx: ExecutionContext
   ): Promise<Response> {
-    return new Response("just the trigger", {
+    return new Response("just the trigger test", {
       headers: {
         "content-type": "text/html;charset=UTF-8",
       },
