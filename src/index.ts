@@ -106,7 +106,7 @@ const handleReddit = async ({input, fetchRedditData, fetchState}: HandleRedditPa
       ])
   );
 
-  const newState = removeOldEntries({...state, ...data}, parseInt(input.retention));
+  const newState = removeOldEntries({...state, ...data}, input.retention);
   const items = Object.entries(newState)
     .map(([, item]) => item)
     .sort((a, b) => a.created - b.created)
