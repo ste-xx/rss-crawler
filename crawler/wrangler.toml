@@ -1,3 +1,7 @@
 name = "rss-crawler-crawler"
 main = "src/index.ts"
 compatibility_date = "2023-04-13"
+
+[[r2_buckets]]
+binding = 'BUCKET'
+bucket_name = 'rss'

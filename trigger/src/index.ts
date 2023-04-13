@@ -9,7 +9,7 @@
  *
  * Learn more at https://developers.cloudflare.com/workers/runtime-apis/scheduled-event/
  */
-import {AllTypes} from "../../crawler/src/index"
+import {FeedTypes} from "../../crawler/src/index"
 export interface Env {
   // Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
   // MY_KV_NAMESPACE: KVNamespace;
@@ -23,7 +23,7 @@ export interface Env {
 }
 
 
-const handler = async (env: Env, config: AllTypes): Promise<Response> => {
+const handler = async (env: Env, config: FeedTypes): Promise<Response> => {
   return env.CRAWLER.fetch("https://example.com", {method: "POST", body:  JSON.stringify(config)})
 }
 

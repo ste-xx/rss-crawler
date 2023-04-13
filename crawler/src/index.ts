@@ -18,7 +18,7 @@ export interface Env {
   // MY_DURABLE_OBJECT: DurableObjectNamespace;
   //
   // Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
-  // MY_BUCKET: R2Bucket;
+  BUCKET: R2Bucket;
 }
 
 export interface FeedItem {
@@ -125,7 +125,7 @@ const handleReddit = async ({input, fetchRedditData, fetchState}: HandleRedditPa
 }
 
 
-export type AllTypes = {retention: number} & (Reddit | GitHub)
+export type FeedTypes = {retention: number} & (Reddit | GitHub)
 
 type Reddit = {
   type: "reddit"
@@ -147,7 +147,7 @@ export default {
     ctx: ExecutionContext
   ): Promise<Response> {
 
-    const payload = (await request.json() as AllTypes)
+    const payload = (await request.json() as FeedTypes)
 
     if(payload.type === 'reddit'){
       const feed = await handleReddit({
@@ -158,6 +158,8 @@ export default {
         fetchRedditData,
         fetchState: async () => ({}),
       });
+
+      await env.BUCKET.put(`reddit/${payload.title}.json`, JSON.stringify(feed, null, 2));
 
       return new Response(JSON.stringify(feed), {
         headers: {
