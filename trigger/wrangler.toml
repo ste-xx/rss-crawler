@@ -2,5 +2,9 @@ name = "rss-crawler-trigger"
 main = "src/index.ts"
 compatibility_date = "2023-04-13"
 
+services = [
+    { binding = "CRAWLER", service = "rss-crawler-crawler" }
+]
+
 [triggers]
 crons = [ "1 * * * *" ]

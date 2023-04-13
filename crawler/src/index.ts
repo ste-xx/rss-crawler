@@ -125,51 +125,48 @@ const handleReddit = async ({input, fetchRedditData, fetchState}: HandleRedditPa
 }
 
 
+export type AllTypes = {retention: number} & (Reddit | GitHub)
+
+type Reddit = {
+  type: "reddit"
+  topic: string;
+  title: string;
+  time: string;
+  minScore: number;
+}
+
+type GitHub = {
+  type: "github"
+  names: string[]
+}
+
 export default {
-  async scheduled(
-    controller: ScheduledController,
-    env: Env,
-    ctx: ExecutionContext
-  ): Promise<void> {
-
-
-    const feed = await handleReddit({
-      input: {
-        feedUrl: "https://rss.breitenstein.dev/rprogramming",
-        topic: "r/programming",
-        title: "r/programming",
-        time: "week",
-        minScore: 500,
-        retention: 10
-      },
-      fetchRedditData,
-      fetchState: async () => ({}),
-    });
-
-    console.log(feed);
-  },
   async fetch(
     request: Request,
     env: Env,
     ctx: ExecutionContext
   ): Promise<Response> {
-    const feed = await handleReddit({
-      input: {
-        feedUrl: "https://rss-crawler.stefanbreitenstein.workers.dev/",
-        topic: "r/programming",
-        title: "r/programming",
-        time: "week",
-        minScore: 500,
-        retention: 10
-      },
-      fetchRedditData,
-      fetchState: async () => ({}),
-    });
 
-    return new Response(JSON.stringify(feed), {
-      headers: {
-        "content-type": "application/json;charset=UTF-8",
-      },
-    });
+    const payload = (await request.json() as AllTypes)
+
+    if(payload.type === 'reddit'){
+      const feed = await handleReddit({
+        input: {
+          feedUrl: "https://rss-crawler.stefanbreitenstein.workers.dev/",
+          ...payload
+        },
+        fetchRedditData,
+        fetchState: async () => ({}),
+      });
+
+      return new Response(JSON.stringify(feed), {
+        headers: {
+          "content-type": "application/json",
+        },
+      });
+
+    } else {
+      return new Response("", { status: 404});
+    }
   },
 };

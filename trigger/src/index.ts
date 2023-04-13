@@ -9,7 +9,7 @@
  *
  * Learn more at https://developers.cloudflare.com/workers/runtime-apis/scheduled-event/
  */
-
+import {AllTypes} from "../../crawler/src/index"
 export interface Env {
   // Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
   // MY_KV_NAMESPACE: KVNamespace;
@@ -19,6 +19,22 @@ export interface Env {
   //
   // Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
   // MY_BUCKET: R2Bucket;
+  CRAWLER: Fetcher
+}
+
+
+const handler = async (env: Env, config: AllTypes): Promise<Response> => {
+  return env.CRAWLER.fetch("https://example.com", {method: "POST", body:  JSON.stringify(config)})
+}
+
+
+const redditRProgramming = {
+  type: "reddit" as const,
+  topic: "r/programming",
+  title: "r/programming",
+  time: "week",
+  minScore: 500,
+  retention: 10
 }
 
 export default {
@@ -27,19 +43,22 @@ export default {
     env: Env,
     ctx: ExecutionContext
   ): Promise<void> {
-
-    console.log("trigger");
-
+      await handler(env, redditRProgramming);
   },
   async fetch(
     request: Request,
     env: Env,
     ctx: ExecutionContext
   ): Promise<Response> {
-    return new Response("just the trigger test", {
-      headers: {
-        "content-type": "text/html;charset=UTF-8",
-      },
-    });
+    if(request.url.endsWith("favicon.ico")){
+      return new Response("", { status: 404});
+    }
+    const val = new URL(request.url).searchParams.get("type");
+
+    if(val === "rprogramming"){
+      return await handler(env, redditRProgramming);
+    }
+
+    return new Response("", { status: 404});
   },
 };
