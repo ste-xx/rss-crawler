@@ -9,166 +9,148 @@
  *
  * Learn more at https://developers.cloudflare.com/workers/runtime-apis/scheduled-event/
  */
+import {handleReddit, RedditFeedConfig} from "./core/reddit";
+import {fetchRedditData} from "./io/fetchRedditData";
+import {fetchGithubData} from "./io/fetchGithubData";
+import {handleGithub, GitHubFeedConfig} from "./core/github";
+import {HackerNewsFeedConfig, handleHackerNews} from "./core/hackerNews";
+import {fetchHackerNewsData} from "./io/fetchHackerNewsData";
+import {FeedMap, JSONFeed} from "./types";
+import {toFeedUrl} from "./core/fn/toFeedUrl";
+import {KaenguruFeedConfig} from "./core/kaenguru";
+import {fetchKaenguruData} from "./io/fetchKaenguruData";
 
 export interface Env {
-  // Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
-  // MY_KV_NAMESPACE: KVNamespace;
-  //
-  // Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
-  // MY_DURABLE_OBJECT: DurableObjectNamespace;
-  //
-  // Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
-  BUCKET: R2Bucket;
-}
+    GITHUB_PAT: string
 
-export interface FeedItem {
-  id: string
-  url: string
-  created: number
-  title: string
-  content_text: string
-}
-
-export type FeedMap = Record<string, FeedItem>
-
-interface RedditResponse {
-  data: {
-    children: {
-      data: {
-        id: string
-        title: string
-        score: number
-        permalink: string
-      }
-    }[]
-  }
-}
-
-interface FetchRedditDataParams {
-  topic: string
-  minScore: number
-  time: string
+    // Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
+    KV: KVNamespace;
+    //
+    // Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
+    // MY_DURABLE_OBJECT: DurableObjectNamespace;
+    //
+    // Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
+    BUCKET: R2Bucket;
 }
 
 
-type Days = number
-export const removeOldEntries = (map: FeedMap, retention: Days): FeedMap => {
-  const DAY_IN_MS = 86400000
-  const deleteAfter = DAY_IN_MS * retention
-  return Object.fromEntries(
-    Object.entries(map).filter(
-      ([, {created = 0}]) => new Date().getTime() - created < deleteAfter
-    )
-  )
-}
+export type FeedConfig = (RedditFeedConfig | GitHubFeedConfig | HackerNewsFeedConfig | KaenguruFeedConfig)
 
-export const fetchRedditData = async ({topic, time}: FetchRedditDataParams): Promise<RedditResponse> => {
-  const url = new URL(`https://www.reddit.com/${topic}/top/.json`)
-  url.searchParams.append('t', time)
 
-  return await (await fetch(url)).json() as RedditResponse
-}
-
-interface HandleRedditParams {
-  fetchRedditData: typeof fetchRedditData
-  fetchState: () => Promise<FeedMap>
-  input: Input
-}
-
-interface Input {
-  topic: string;
-  minScore: number;
-  time: string;
-  feedUrl: string;
-  title: string;
-  retention: number;
-}
-
-const handleReddit = async ({input, fetchRedditData, fetchState}: HandleRedditParams) => {
-  const state = await fetchState();
-  const redditResponse = await fetchRedditData(input);
-
-  const posts = redditResponse.data.children ?? []
-
-  const data: FeedMap = Object.fromEntries(
-    posts
-      .map(({data}) => data)
-      .filter(({score}) => score >= input.minScore)
-      .map(({id, title, score, permalink}) => [
-        id,
-        {
-          id,
-          url: `https://reddit.com${permalink}`,
-          created: new Date().getTime(),
-          title: `${title} (${score})`,
-          content_text: ``
-        }
-      ])
-  );
-
-  const newState = removeOldEntries({...state, ...data}, input.retention);
-  const items = Object.entries(newState)
-    .map(([, item]) => item)
-    .sort((a, b) => a.created - b.created)
-
-  return {
-    version: 'https://jsonfeed.org/version/1',
-    title: input.title,
-    feed_url: input.feedUrl,
-    items: items.reverse().map(({id, title, url, content_text}) => ({
-      id,
-      title,
-      content_text,
-      url
-    }))
-  }
+interface RequestPayload {
+    feed: string;
 }
 
 
-export type FeedTypes = {retention: number} & (Reddit | GitHub)
-
-type Reddit = {
-  type: "reddit"
-  topic: string;
-  title: string;
-  time: string;
-  minScore: number;
+const getConfig = async (env: Env, feed: string): Promise<FeedConfig | null> => {
+    const config = await env.KV.get(`config:${feed}`);
+    return config ? JSON.parse(config) as FeedConfig : null;
 }
 
-type GitHub = {
-  type: "github"
-  names: string[]
-}
+const toResponse = (feed: JSONFeed) => new Response(JSON.stringify(feed), {
+    headers: {
+        "content-type": "application/json",
+    },
+})
 
 export default {
-  async fetch(
-    request: Request,
-    env: Env,
-    ctx: ExecutionContext
-  ): Promise<Response> {
+    async fetch(
+        request: Request,
+        env: Env,
+        ctx: ExecutionContext
+    ): Promise<Response> {
 
-    const payload = (await request.json() as FeedTypes)
+        const {feed} = (await request.json() as RequestPayload)
 
-    if(payload.type === 'reddit'){
-      const feed = await handleReddit({
-        input: {
-          feedUrl: "https://rss-crawler.stefanbreitenstein.workers.dev/",
-          ...payload
-        },
-        fetchRedditData,
-        fetchState: async () => ({}),
-      });
+        const config = await getConfig(env, feed);
+        if (config === null) {
+            return new Response(`feed ${feed} not found`, {status: 404});
+        }
 
-      await env.BUCKET.put(`reddit/${payload.title}.json`, JSON.stringify(feed, null, 2));
+        const stateFetcher = async () => {
+            const state = await env.KV.get(`state:${feed}`);
+            return JSON.parse(state ?? "{}");
+        };
+        const stateWriter = async (state: FeedMap) => await env.KV.put(`state:${feed}`, JSON.stringify(state, null, 2))
 
-      return new Response(JSON.stringify(feed), {
-        headers: {
-          "content-type": "application/json",
-        },
-      });
+        const feedWriter = async (_feed: JSONFeed) => await env.BUCKET.put(`${feed}.json`, JSON.stringify(_feed, null, 2))
 
-    } else {
-      return new Response("", { status: 404});
-    }
-  },
+        const feedUrl = toFeedUrl({
+            domain: config.domain,
+            feed
+        });
+
+        if (config.type === 'kaenguru') {
+            const data = await fetchKaenguruData();
+            return new Response(data, {
+                headers: {
+                    "content-type": "text/html",
+                }
+            });
+        }
+        if (config.type === 'github') {
+            const jsonFeed = await handleGithub({
+                config,
+                source: {
+                    fetch: async () => await fetchGithubData({token: env.GITHUB_PAT, names: config.names})
+                },
+                state: {
+                    fetch: stateFetcher,
+                    write: stateWriter,
+                    retention: config.retention
+                },
+                feed: {
+                    write: feedWriter,
+                    url: feedUrl,
+                    title: config.title
+                }
+            })
+
+            return toResponse(jsonFeed);
+
+        } else if (config.type === 'reddit') {
+            const jsonFeed = await handleReddit({
+                config,
+                source: {
+                    fetch: () => fetchRedditData(config)
+                },
+                state: {
+                    fetch: stateFetcher,
+                    write: stateWriter,
+                    retention: config.retention
+                },
+                feed: {
+                    write: feedWriter,
+                    url: feedUrl,
+                    title: config.title
+                }
+            });
+
+            return toResponse(jsonFeed);
+
+        } else if (config.type === 'hackerNews') {
+            const jsonFeed = await handleHackerNews({
+                config,
+                source: {
+                    fetch: () => fetchHackerNewsData(config)
+                },
+                state: {
+                    fetch: stateFetcher,
+                    write: stateWriter,
+                    retention: config.retention
+                },
+                feed: {
+                    write: feedWriter,
+                    url: feedUrl,
+                    title: config.title
+                }
+            });
+
+            return toResponse(jsonFeed);
+
+        } else {
+            // @ts-ignore
+            return new Response(`unknown feed type ${config.type}`, {status: 400});
+        }
+    },
 };

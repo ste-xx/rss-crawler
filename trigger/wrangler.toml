@@ -6,5 +6,9 @@ services = [
     { binding = "CRAWLER", service = "rss-crawler-crawler" }
 ]
 
+kv_namespaces = [
+    { binding = "KV", id = "a9040d62066444b99fcdf700c8ca60d0" }
+]
+
 [triggers]
 crons = [ "1 * * * *" ]

@@ -2,6 +2,10 @@ name = "rss-crawler-crawler"
 main = "src/index.ts"
 compatibility_date = "2023-04-13"
 
-[[r2_buckets]]
-binding = 'BUCKET'
-bucket_name = 'rss'
+kv_namespaces = [
+    { binding = "KV", id = "a9040d62066444b99fcdf700c8ca60d0" }
+]
+
+r2_buckets = [
+    { binding = "BUCKET", bucket_name = "rss" }
+]
