@@ -17,7 +17,7 @@ import {HackerNewsFeedConfig, handleHackerNews} from "./core/hackerNews";
 import {fetchHackerNewsData} from "./io/fetchHackerNewsData";
 import {FeedMap, JSONFeed} from "./types";
 import {toFeedUrl} from "./core/fn/toFeedUrl";
-import {KaenguruFeedConfig} from "./core/kaenguru";
+import {handleKaenguru, KaenguruFeedConfig} from "./core/kaenguru";
 import {fetchKaenguruData} from "./io/fetchKaenguruData";
 
 export interface Env {
@@ -81,12 +81,46 @@ export default {
         });
 
         if (config.type === 'kaenguru') {
-            const data = await fetchKaenguruData();
-            return new Response(data, {
-                headers: {
-                    "content-type": "text/html",
+            const jsonFeed = await handleKaenguru({
+                config,
+                source: {
+                    fetch: async () => {
+                        const arr = await Promise.all(
+                            config.daysOfWeek.map(async dayOfWeek => (await fetchKaenguruData({dayOfWeek})).items )
+                        );
+
+                        return {
+                            items: arr.reduce((acc, cur) => [...acc, ...cur], []),
+                            html: async () => "not set"
+                        };
+                    }
+                },
+                state: {
+                    fetch: stateFetcher,
+                    write: stateWriter,
+                    retention: config.retention
+                },
+                feed: {
+                    write: feedWriter,
+                    url: feedUrl,
+                    title: config.title
                 }
-            });
+            })
+
+            return toResponse(jsonFeed);
+
+            // const response = await fetchKaenguruData({dayOfWeek: 7});
+            // return new Response(await response.html(), {
+            //     headers: {
+            //         "content-type": "text/html",
+            //     }
+            // });
+            //
+            // return new Response(JSON.stringify( arr.reduce((acc, cur) => [...acc, ...cur], []), null, 2), {
+            //     headers: {
+            //         "content-type": "application/json",
+            //     }
+            // });
         }
         if (config.type === 'github') {
             const jsonFeed = await handleGithub({
