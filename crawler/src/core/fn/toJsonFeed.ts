@@ -13,7 +13,7 @@ export const toJsonFeed = ({title, feedUrl, items}: Param): JSONFeed => {
     version: 'https://jsonfeed.org/version/1' as const,
     title,
     feed_url: feedUrl,
-    items: [...items].reverse().map((item) => clearSurplusProperties(item))
+    items: [...items].map((item) => clearSurplusProperties(item))
   }
 }
 
