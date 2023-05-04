@@ -47,7 +47,7 @@ const getConfig = async (env: Env, feed: string): Promise<FeedConfig | null> => 
     return config ? JSON.parse(config) as FeedConfig : null;
 }
 
-const toResponse = (feed: JSONFeed) => new Response(JSON.stringify(feed), {
+const toResponse = (feed: JSONFeed) => new Response(JSON.stringify(feed, null , 2), {
     headers: {
         "content-type": "application/json",
     },
