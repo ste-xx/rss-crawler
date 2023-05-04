@@ -18,8 +18,14 @@ interface Response {
 
 export const fetchRedditData = async ({topic, time}: Param): Promise<Response> => {
   const url = new URL(`https://www.reddit.com/${topic}/top/.json`)
-  url.searchParams.append('t', time)
+  url.searchParams.append('t', time);
 
-  return await (await fetch(url)).json() as Response
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': "nodejs"
+    }
+  });
+
+  return response.json();
 }
 export type FetchRedditData = typeof fetchRedditData
